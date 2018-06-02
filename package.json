@@ -1,0 +1,21 @@
+{
+  "name": "ast-compress",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build-tsc": "tsc",
+    "build-copy-spec": "cp ./es6.webidl ./dist",
+    "build": "npm run build-tsc; npm run build-copy-spec",
+    "encode": "node ./dist/index.js --encode"
+  },
+  "author": "Kannan Vijayan <kannan@vijayan.ca>",
+  "license": "GPLv3",
+  "dependencies": {
+    "shift-parser": ">=5.2.4",
+    "typescript": ">=2.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^10.1.3"
+  }
+}
