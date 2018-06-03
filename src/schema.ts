@@ -6,7 +6,11 @@ export type Identifier = string;
 export type IdentifierName = string;
 export type Label = string;
 
-export enum VariableDeclarationKind { Var, Let, Const };
+export enum VariableDeclarationKind {
+    Var = "var",
+    Let = "let",
+    Const = "const"
+};
 
 export enum CompoundAssignmentOperator {
     AddAssign = "+=",
@@ -247,6 +251,11 @@ export type ArrowExpression =
 
 export class BindingIdentifier extends BaseNode {
     readonly name: Identifier;
+
+    constructor(params: {name: Identifier}) {
+        super();
+        this.name = params.name;
+    }
 }
 
 export type BindingPattern = (ObjectBinding | ArrayBinding);
@@ -519,6 +528,12 @@ export class DataProperty extends BaseNode {
     readonly name: PropertyName;
     // The `AssignmentExpression`.
     readonly expression: Expression;
+
+    constructor(params: {name: PropertyName, expression: Expression}) {
+        super();
+        this.name = params.name;
+        this.expression = params.expression;
+    }
 }
 
 // `PropertyDefinition :: IdentifierReference`
@@ -534,6 +549,11 @@ export class ComputedPropertyName extends BaseNode {
 // `LiteralPropertyName`
 export class LiteralPropertyName extends BaseNode {
     readonly value: string;
+
+    constructor(params: {value: string}) {
+        super();
+        this.value = params.value;
+    }
 }
 
 
@@ -542,6 +562,11 @@ export class LiteralPropertyName extends BaseNode {
 // `BooleanLiteral`
 export class LiteralBooleanExpression extends BaseNode {
     readonly value: boolean;
+
+    constructor(params: {value: boolean}) {
+        super();
+        this.value = params.value;
+    }
 }
 
 // A `NumericLiteral` for which the Number value of its MV is positive infinity.
@@ -564,6 +589,11 @@ export class LiteralRegExpExpression extends BaseNode {
 // `StringLiteral`
 export class LiteralStringExpression extends BaseNode {
     readonly value: string;
+
+    constructor(params: {value: string}) {
+        super();
+        this.value = params.value;
+    }
 }
 
 
@@ -679,7 +709,7 @@ export class SkippableFunctionExpression extends BaseNode {
 export class IdentifierExpression extends BaseNode {
     readonly name: Identifier;
 
-    constructor(params: {name: string}) {
+    constructor(params: {name: Identifier}) {
         super();
         this.name = params.name;
     }
@@ -694,6 +724,11 @@ export class NewTargetExpression extends BaseNode { };
 
 export class ObjectExpression extends BaseNode {
     readonly properties: Array<ObjectProperty>;
+
+    constructor(params: {properties: Array<ObjectProperty>}) {
+        super();
+        this.properties = params.properties;
+    }
 }
 
 export class UnaryExpression extends BaseNode {
@@ -835,6 +870,16 @@ export class IfStatement extends BaseNode {
     readonly consequent: Statement;
     // The second `Statement`, if present.
     readonly alternate: Statement | null;
+
+    constructor(params: {test: Expression,
+                         consequent: Statement,
+                         alternate: Statement|null})
+    {
+        super();
+        this.test = params.test;
+        this.consequent = params.consequent;
+        this.alternate = params.alternate;
+    }
 }
 
 export class LabelledStatement extends BaseNode {
@@ -902,6 +947,14 @@ export class WithStatement extends BaseNode {
 export class Block extends BaseNode {
     readonly scope: AssertedBlockScope | null;
     readonly statements: Array<Statement>;
+
+    constructor(params: {scope: AssertedBlockScope,
+                         statements: Array<Statement>})
+    {
+        super();
+        this.scope = params.scope;
+        this.statements = params.statements;
+    }
 }
 
 // `Catch`
@@ -926,11 +979,27 @@ export class Directive extends BaseNode {
 export class FormalParameters extends BaseNode {
     readonly items: Array<Parameter>;
     readonly rest: Binding | null;
+
+    constructor(params: {items: Array<Parameter>,
+                         rest: Binding | null})
+    {
+        super();
+        this.items = params.items;
+        this.rest = params.rest;
+    }
 }
 
 export class FunctionBody extends BaseNode {
     readonly directives: Array<Directive>;
     readonly statements: Array<Statement>;
+
+    constructor(params: {directives: Array<Directive>,
+                         statements: Array<Statement>})
+    {
+        super();
+        this.directives = params.directives;
+        this.statements = params.statements;
+    }
 }
 
 
@@ -946,6 +1015,24 @@ export class EagerFunctionDeclaration extends BaseNode {
     readonly bodyScope: AssertedVarScope | null;
     readonly params: FormalParameters;
     readonly body: FunctionBody;
+
+    constructor(params: {isAsync: boolean;
+                         isGenerator: boolean;
+                         name: BindingIdentifier;
+                         parameterScope: AssertedParameterScope | null;
+                         bodyScope: AssertedVarScope | null;
+                         params: FormalParameters;
+                         body: FunctionBody})
+    {
+        super();
+        this.isAsync = params.isAsync;
+        this.isGenerator = params.isGenerator;
+        this.name = params.name;
+        this.parameterScope = params.parameterScope;
+        this.bodyScope = params.bodyScope;
+        this.params = params.params;
+        this.body = params.body;
+    }
 }
 
 /* [Skippable] */
@@ -996,9 +1083,26 @@ export class VariableDeclaration extends BaseNode {
     readonly kind: VariableDeclarationKind;
     /* [NonEmpty] */
     readonly declarators: Array<VariableDeclarator>;
+
+    constructor(params: {kind: VariableDeclarationKind,
+                         declarators: Array<VariableDeclarator>})
+    {
+        super();
+        this.kind = params.kind;
+        this.declarators = params.declarators;
+    }
 }
 
 export class VariableDeclarator extends BaseNode {
     readonly binding: Binding;
     readonly init: Expression | null;
+
+
+    constructor(params: {binding: Binding,
+                         init: (Expression | null)})
+    {
+        super();
+        this.binding = params.binding;
+        this.init = params.init;
+    }
 }

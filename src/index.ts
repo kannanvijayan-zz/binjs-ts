@@ -12,13 +12,18 @@ function encode(filename: string) {
 }
 
 function main() {
-    if (process.argv.length < 2) {
+    const args: Array<string> = process.argv.slice(2);
+    if (args.length < 2) {
         console.error("Filename not given.");
         process.exit(1);
     }
-
-    const fn = process.argv[1];
-    console.log(JSON.stringify(encode(fn), null, 2));
+    if (args[0] === '--encode') {
+        console.log(`ENCODING: ${args[1]}`);
+        console.log(JSON.stringify(encode(args[1]), null, 2));
+    } else {
+        console.error(`Unrecognized command: ${args[0]}`);
+        process.exit(1);
+    }
 }
 
 main();
