@@ -209,7 +209,7 @@ class Importer {
             d => this.liftDirective(d));
         const statements = (json.statements as Array<any>).map(
             s => this.liftStatement(s));
-        
+
         const scope = ss.extractVarScope();
         this.cx.popScope(ss);
 
@@ -237,8 +237,34 @@ class Importer {
             return this.liftFunctionDeclaration(json);
           case 'IfStatement':
             return this.liftIfStatement(json);
+          case 'WhileStatement':
+            return this.liftWhileStatement(json);
+          case 'DoWhileStatement':
+            return this.liftDoWhileStatement(json);
           case 'BlockStatement':
             return this.liftBlockStatement(json);
+          case 'ReturnStatement':
+            return this.liftReturnStatement(json);
+          case 'ForInStatement':
+            return this.liftForInStatement(json);
+          case 'ForStatement':
+            return this.liftForStatement(json);
+          case 'BreakStatement':
+            return this.liftBreakStatement(json);
+          case 'TryCatchStatement':
+            return this.liftTryCatchStatement(json);
+          case 'TryFinallyStatement':
+            return this.liftTryFinallyStatement(json);
+          case 'ThrowStatement':
+            return this.liftThrowStatement(json);
+          case 'SwitchStatement':
+            return this.liftSwitchStatement(json);
+          case 'SwitchStatementWithDefault':
+            return this.liftSwitchStatementWithDefault(json);
+          case 'LabeledStatement': /* WHAT? */
+            return this.liftLabeledStatement(json);
+          case 'EmptyStatement':
+            return this.liftEmptyStatement(json);
           default:
             throw new MatchError('Statement', json.type);
         }
@@ -325,7 +351,7 @@ class Importer {
         const parameterScope = ps.extractParameterScope();
         const bodyScope = bs.extractVarScope();
 
-        // TODO: Emit an LazyFunctionDeclaration when appropriate.
+        // TODO: Emit an SkippableFunctionDeclaration when appropriate.
         return new S.EagerFunctionDeclaration({
             isAsync, isGenerator, name,
             parameterScope, params,
@@ -357,7 +383,7 @@ class Importer {
         assertNodeType(json, 'FunctionBody');
 
         const directives = json.directives.map(d => this.liftDirective(d));
-        const statements = json.directives.map(s => this.liftStatement(s));
+        const statements = json.statements.map(s => this.liftStatement(s));
         return new S.FunctionBody({directives, statements});
     }
 
@@ -373,6 +399,14 @@ class Importer {
 
         return new S.IfStatement({test, consequent, alternate});
     }
+    liftWhileStatement(json: any): S.WhileStatement {
+        assertNodeType(json, 'WhileStatement');
+        return summarizeNode(json);
+    }
+    liftDoWhileStatement(json: any): S.DoWhileStatement {
+        assertNodeType(json, 'DoWhileStatement');
+        return summarizeNode(json);
+    }
 
     liftBlockStatement(json: any): S.Block {
         assertNodeType(json, 'BlockStatement');
@@ -380,6 +414,7 @@ class Importer {
     }
     liftBlock(json: any): S.Block {
         assertNodeType(json, 'Block');
+
         const s = this.cx.pushScope();
         const statements = json.statements.map(s => this.liftStatement(s));
         this.cx.popScope(s);
@@ -387,8 +422,126 @@ class Importer {
 
         return new S.Block({scope, statements});
     }
+    liftReturnStatement(json: any): S.ReturnStatement {
+        assertNodeType(json, 'ReturnStatement');
+
+        const expression =
+            json.expression !== null ?
+                this.liftExpression(json.expression)
+              : null;
+
+        return new S.ReturnStatement({expression});
+    }
+    liftForInStatement(json: any): S.ForInStatement {
+        assertNodeType(json, 'ForInStatement');
+        return summarizeNode(json);
+    }
+    liftForStatement(json: any): S.ForStatement {
+        assertNodeType(json, 'ForStatement');
+        return summarizeNode(json);
+    }
+    liftBreakStatement(json: any): S.BreakStatement {
+        assertNodeType(json, 'BreakStatement');
+        assertType(json.label, 'string', /* nullable = */ true);
+
+        const label = json.label as (S.Label|null);
+        return new S.BreakStatement({label});
+    }
+    liftTryCatchStatement(json: any): S.TryCatchStatement {
+        assertNodeType(json, 'TryCatchStatement');
+
+        const body = this.liftBlock(json.body);
+        const catchClause = this.liftCatchClause(json.catchClause);
+
+        return new S.TryCatchStatement({body, catchClause});
+    }
+    liftCatchClause(json: any): S.CatchClause {
+        assertNodeType(json, 'CatchClause');
+
+        const bs = this.cx.pushScope();
+        const binding = this.liftBindingIdentifier(json.binding);
+        const body = this.liftBlock(json.body);
+        this.cx.popScope(bs);
+        const bindingScope = bs.extractParameterScope();
+
+        return new S.CatchClause({bindingScope, binding, body});
+    }
+
+    liftTryFinallyStatement(json: any): S.TryFinallyStatement {
+        assertNodeType(json, 'TryFinallyStatement');
+        return summarizeNode(json);
+    }
+    liftThrowStatement(json: any): S.ThrowStatement {
+        assertNodeType(json, 'ThrowStatement');
+
+        const expression = this.liftExpression(json.expression);
+
+        return new S.ThrowStatement({expression});
+    }
+    liftSwitchStatement(json: any): S.SwitchStatement {
+        assertNodeType(json, 'SwitchStatement');
+
+        const discriminant = this.liftExpression(json.discriminant);
+        const cases = json.cases.map(c => this.liftSwitchCase(c));
+        return new S.SwitchStatement({discriminant, cases});
+    }
+    liftSwitchStatementWithDefault(json: any): S.SwitchStatementWithDefault {
+        assertNodeType(json, 'SwitchStatementWithDefault');
+
+        const discriminant = this.liftExpression(json.discriminant);
+        const preDefaultCases = json.preDefaultCases.map(c => {
+            return this.liftSwitchCase(c);
+        });
+        const defaultCase = this.liftSwitchDefault(json.defaultCase);
+        const postDefaultCases = json.preDefaultCases.map(c => {
+            return this.liftSwitchCase(c);
+        });
+
+        return new S.SwitchStatementWithDefault({
+            discriminant, preDefaultCases, defaultCase, postDefaultCases
+        });
+    }
+    liftSwitchCase(json: any): S.SwitchCase {
+        assertNodeType(json, 'SwitchCase');
+
+        const test = this.liftExpression(json.test);
+        const consequent = json.consequent.map(c => this.liftStatement(c));
+
+        return new S.SwitchCase({test, consequent});
+    }
+    liftSwitchDefault(json: any): S.SwitchDefault {
+        assertNodeType(json, 'SwitchDefault');
+
+        const consequent = json.consequent.map(c => this.liftStatement(c));
+
+        return new S.SwitchDefault({consequent});
+    }
+
+    liftLabeledStatement(json: any): S.LabelledStatement {
+        assertNodeType(json, 'LabeledStatement');
+        return summarizeNode(json);
+    }
+    liftEmptyStatement(json: any): S.EmptyStatement {
+        assertNodeType(json, 'EmptyStatement');
+        return summarizeNode(json);
+    }
 
     liftExpression(json: any): S.Expression {
+        const expr = this.tryLiftExpression(json);
+        if (expr !== null) {
+            return expr;
+        }
+        throw new MatchError('Expression', json.type);
+    }
+    liftExpressionOrSuper(json: any): S.Expression {
+        const expr = this.tryLiftExpression(json);
+        if (expr !== null) {
+            return expr;
+        }
+        // TODO: Handle 'Super'.
+        throw new MatchError('ExpressionOrSuper', json.type);
+    }
+    tryLiftExpression(json: any): S.Expression|null {
         switch (json.type as string) {
           case 'CallExpression':
             return this.liftCallExpression(json);
@@ -406,10 +559,32 @@ class Importer {
             return this.liftArrayExpression(json);
           case 'FunctionExpression':
             return this.liftFunctionExpression(json);
+          case 'AssignmentExpression':
+            return this.liftAssignmentExpression(json);
           case 'LiteralNullExpression':
             return this.liftLiteralNullExpression(json);
+          case 'UnaryExpression':
+            return this.liftUnaryExpression(json);
+          case 'BinaryExpression':
+            return this.liftBinaryExpression(json);
+          case 'ComputedMemberExpression':
+            return this.liftComputedMemberExpression(json);
+          case 'LiteralNumericExpression':
+            return this.liftLiteralNumericExpression(json);
+          case 'LiteralRegExpExpression':
+            return this.liftLiteralRegExpExpression(json);
+          case 'CompoundAssignmentExpression':
+            return this.liftCompoundAssignmentExpression(json);
+          case 'UpdateExpression':
+            return this.liftUpdateExpression(json);
+          case 'NewExpression':
+            return this.liftNewExpression(json);
+          case 'ThisExpression':
+            return this.liftThisExpression(json);
+          case 'ConditionalExpression':
+            return this.liftConditionalExpression(json);
           default:
-            throw new MatchError('Expression', json.type);
+            return null;
         }
     }
     liftCallExpression(json: any): S.CallExpression {
@@ -480,20 +655,202 @@ class Importer {
 
         const name = this.liftPropertyName(json.name);
         const expression = this.liftExpression(json.expression);
-        
+
         return new S.DataProperty({name, expression});
     }
 
     liftArrayExpression(json: any): S.ArrayExpression {
         assertNodeType(json, 'ArrayExpression');
-        return summarizeNode(json);
+
+        const elements = json.elements.map(e => this.liftArrayElement(e));
+
+        return new S.ArrayExpression({elements});
+    }
+    liftArrayElement(json: any): S.ArrayElement {
+        if (json === null) {
+            return null;
+        }
+
+        const expr = this.tryLiftExpression(json);
+        if (expr !== null) {
+            return expr;
+        }
+
+        if (json.type === 'SpreadElement') {
+            return summarizeNode(json);
+        }
+
+        throw new MatchError('ArrayElement', json.type);
     }
     liftFunctionExpression(json: any): S.FunctionExpression {
         assertNodeType(json, 'FunctionExpression');
-        return summarizeNode(json);
+        assertType(json.isGenerator, 'boolean');
+
+        const isAsync = false;
+        const isGenerator = json.isGenerator as boolean;
+        const name =
+            json.name !== null ?
+                this.liftBindingIdentifier(json.name)
+              : null;
+
+        const ps = this.cx.pushScope();
+        const params = this.liftFormalParameters(json.params);
+
+        const bs = this.cx.pushScope();
+        const body = this.liftFunctionBody(json.body);
+
+        this.cx.popScope(bs);
+        this.cx.popScope(ps);
+
+        const parameterScope = ps.extractParameterScope();
+        const bodyScope = bs.extractVarScope();
+
+        // TODO: Emit an SkippableFunctionExpression when appropriate.
+        return new S.EagerFunctionExpression({
+            isAsync, isGenerator, name,
+            parameterScope, params,
+            bodyScope, body
+        });
     }
+    liftAssignmentExpression(json: any): S.AssignmentExpression {
+        assertNodeType(json, 'AssignmentExpression');
+
+        const binding = this.liftAssignmentTarget(json.binding);
+        const expression = this.liftExpression(json.expression);
+
+        return new S.AssignmentExpression({binding, expression});
+    }
+    liftAssignmentTarget(json: any): S.AssignmentTarget {
+        const simple = this.tryLiftSimpleAssignmentTarget(json);
+        if (simple) {
+            return simple;
+        }
+
+        throw new MatchError('AssignmentTarget', json.type);
+    }
+    liftSimpleAssignmentTarget(json: any): S.SimpleAssignmentTarget {
+        const target = this.tryLiftSimpleAssignmentTarget(json);
+        if (target !== null) {
+            return target;
+        }
+        throw new MatchError('SimpleAssignmentTarget', json.type);
+    }
+    tryLiftSimpleAssignmentTarget(json: any): S.SimpleAssignmentTarget|null {
+        switch (json.type as string) {
+          case 'AssignmentTargetIdentifier':
+            return this.liftAssignmentTargetIdentifier(json);
+          case 'StaticMemberAssignmentTarget':
+            return this.liftStaticMemberAssignmentTarget(json);
+          case 'ComputedMemberAssignmentTarget':
+            return this.liftComputedMemberAssignmentTarget(json);
+          default:
+            return null;
+        }
+    }
+    liftAssignmentTargetIdentifier(json: any): S.AssignmentTargetIdentifier {
+        assertNodeType(json, 'AssignmentTargetIdentifier');
+        assertType(json.name, 'string');
+
+        const name = json.name as S.Identifier;
+
+        return new S.AssignmentTargetIdentifier({name});
+    }
+    liftStaticMemberAssignmentTarget(json: any)
+      : S.StaticMemberAssignmentTarget
+    {
+        assertNodeType(json, 'StaticMemberAssignmentTarget');
+        assertType(json.property, 'string');
+
+        const object_ = this.liftExpressionOrSuper(json.object);
+        const property = json.property as S.IdentifierName;
+
+        return new S.StaticMemberAssignmentTarget({object_, property});
+    }
+
+    liftComputedMemberAssignmentTarget(json: any)
+      : S.ComputedMemberAssignmentTarget
+    {
+        assertNodeType(json, 'ComputedMemberAssignmentTarget');
+
+        const object_ = this.liftExpressionOrSuper(json.object);
+        const expression = this.liftExpression(json.expression);
+
+        return new S.ComputedMemberAssignmentTarget({object_, expression});
+    }
+
     liftLiteralNullExpression(json: any): S.LiteralNullExpression {
         assertNodeType(json, 'LiteralNullExpression');
+        return new S.LiteralNullExpression();
+    }
+    liftUnaryExpression(json: any): S.UnaryExpression {
+        assertNodeType(json, 'UnaryExpression');
+        assertType(json.operator, 'string');
+
+        const operator = json.operator as S.UnaryOperator;
+        const operand = this.liftExpression(json.operand);
+
+        return new S.UnaryExpression({operator, operand});
+    }
+    liftBinaryExpression(json: any): S.BinaryExpression {
+        assertNodeType(json, 'BinaryExpression');
+        assertType(json.operator, 'string');
+
+        const operator = json.operator as S.BinaryOperator;
+        const left = this.liftExpression(json.left);
+        const right = this.liftExpression(json.right);
+
+        return new S.BinaryExpression({operator, left, right});
+    }
+    liftComputedMemberExpression(json: any): S.ComputedMemberExpression {
+        assertNodeType(json, 'ComputedMemberExpression');
+
+        const object_ = this.liftExpressionOrSuper(json.object);
+        const expression = this.liftExpression(json.expression);
+
+        return new S.ComputedMemberExpression({object_, expression});
+    }
+    liftLiteralNumericExpression(json: any): S.LiteralNumericExpression {
+        assertNodeType(json, 'LiteralNumericExpression');
+        assertType(json.value, 'number');
+
+        const value = json.value as number;
+        return new S.LiteralNumericExpression({value});
+    }
+    liftLiteralRegExpExpression(json: any): S.LiteralRegExpExpression {
+        assertNodeType(json, 'LiteralRegExpExpression');
+        return summarizeNode(json);
+    }
+    liftCompoundAssignmentExpression(json: any)
+      : S.CompoundAssignmentExpression
+    {
+        assertNodeType(json, 'CompoundAssignmentExpression');
+        return summarizeNode(json);
+    }
+    liftUpdateExpression(json: any): S.UpdateExpression {
+        assertNodeType(json, 'UpdateExpression');
+        assertType(json.isPrefix, 'boolean');
+        assertType(json.operator, 'string');
+
+        const isPrefix = json.isPrefix as boolean;
+        const operator = json.operator as S.UpdateOperator;
+        const operand = this.liftSimpleAssignmentTarget(json.operand);
+
+        return new S.UpdateExpression({isPrefix, operator, operand});
+    }
+    liftNewExpression(json: any): S.NewExpression {
+        assertNodeType(json, 'NewExpression');
+
+        const callee = this.liftExpression(json.callee);
+        const arguments_ = json.arguments.map(s => this.liftExpression(s));
+
+        return new S.NewExpression({callee, arguments_});
+    }
+    liftThisExpression(json: any): S.ThisExpression {
+        assertNodeType(json, 'ThisExpression');
+        return new S.ThisExpression();
+    }
+    liftConditionalExpression(json: any): S.ConditionalExpression {
+        assertNodeType(json, 'ConditionalExpression');
         return summarizeNode(json);
     }
 
@@ -511,7 +868,7 @@ class Importer {
         assertType(json.value, 'string');
 
         const value = json.value as string;
-        
+
         return new S.LiteralPropertyName({value});
     }
 }

@@ -7,7 +7,7 @@
     "build-tsc": "tsc",
     "build-copy-spec": "cp ./es6.webidl ./dist",
     "build": "npm run build-tsc; npm run build-copy-spec",
-    "encode": "node ./dist/index.js --encode"
+    "encode": "node --max_old_space_size=8192 ./dist/index.js --encode"
   },
   "author": "Kannan Vijayan <kannan@vijayan.ca>",
   "license": "GPLv3",
