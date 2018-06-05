@@ -281,6 +281,12 @@ export type Parameter = (Binding | BindingWithInitializer);
 export class BindingWithInitializer extends BaseNode {
     readonly binding: Binding;
     readonly init: Expression;
+
+    constructor(params: {binding: Binding, init: Expression}) {
+        super();
+        this.binding = params.binding;
+        this.init = params.init;
+    }
 }
 
 export class AssignmentTargetIdentifier extends BaseNode {
@@ -610,6 +616,12 @@ export class LiteralNumericExpression extends BaseNode {
 export class LiteralRegExpExpression extends BaseNode {
     readonly pattern: string;
     readonly flags: string;
+
+    constructor(params: {pattern: string, flags: string}) {
+        super();
+        this.pattern = params.pattern;
+        this.flags = params.flags;
+    }
 }
 
 // `StringLiteral`
@@ -961,6 +973,14 @@ export class ExpressionStatement extends BaseNode {
 export class ForInOfBinding extends BaseNode {
     readonly kind: VariableDeclarationKind;
     readonly binding: Binding;
+
+    constructor(params: {kind: VariableDeclarationKind,
+                         binding: Binding})
+    {
+        super();
+        this.kind = params.kind;
+        this.binding = params.binding;
+    }
 }
 
 // `for ( LeftHandSideExpression in Expression ) Statement`,
@@ -973,6 +993,15 @@ export class ForInStatement extends BaseNode {
     // The expression after `in`.
     readonly right: Expression;
     readonly body: Statement;
+
+    constructor(params: {left: (ForInOfBinding | AssignmentTarget),
+                         right: Expression,
+                         body: Statement}) {
+        super();
+        this.left = params.left;
+        this.right = params.right;
+        this.body = params.body;
+    }
 }
 
 // `for ( LeftHandSideExpression of Expression ) Statement`,
@@ -996,6 +1025,18 @@ export class ForStatement extends BaseNode {
     // The expression after the second `;`, if present
     readonly update: Expression | null;
     readonly body: Statement;
+
+    constructor(params: {init: (VariableDeclaration | Expression | null),
+                         test: Expression | null,
+                         update: Expression | null,
+                         body: Statement})
+    {
+        super();
+        this.init = params.init;
+        this.test = params.test;
+        this.update = params.update;
+        this.body = params.body;
+    }
 }
 
 // `if ( Expression ) Statement`,

@@ -444,11 +444,69 @@ class Importer {
     }
     liftForInStatement(json: any): S.ForInStatement {
         assertNodeType(json, 'ForInStatement');
-        return summarizeNode(json);
+
+        const left = this.liftForInStatementLeft(json.left);
+        const right = this.liftExpression(json.right);
+        const body = this.liftStatement(json.body);
+
+        return new S.ForInStatement({left, right, body});
     }
+    liftForInStatementLeft(json: any)
+      : (S.ForInOfBinding | S.AssignmentTarget)
+    {
+        const result = this.tryLiftAssignmentTarget(json);
+        if (result !== null) {
+            return result;
+        }
+
+        if (json.type == 'VariableDeclaration') {
+            const kind = json.kind as S.VariableDeclarationKind;
+            if (json.declarators.length != 1) {
+                throw new Error('Invalid ForIn with multiple declarations:' +
+                                ` ${json.declarators.length}.`);
+            }
+            const decl = json.declarators[0];
+            if (decl.type !== 'VariableDeclarator') {
+                throw new Error('Expected VariableDeclarator in ForIn,' +
+                                ` but got: ${decl.type}.`);
+            }
+            const binding = this.liftBinding(decl.binding);
+
+            return new S.ForInOfBinding({kind, binding});
+        }
+
+        throw new MatchError('ForInStatementLeft', json.type);
+    }
+
     liftForStatement(json: any): S.ForStatement {
         assertNodeType(json, 'ForStatement');
-        return summarizeNode(json);
+
+        const init = this.liftForStatementInit(json.init);
+        const test = json.test !== null ? this.liftExpression(json.test)
+                                        : null;
+        const update = json.update !== null ? this.liftExpression(json.update)
+                                        : null;
+        const body = this.liftStatement(json.body);
+
+        return new S.ForStatement({init, test, update, body});
+    }
+    liftForStatementInit(json: any)
+      : (S.VariableDeclaration | S.Expression | null)
+    {
+        if (json === null) {
+            return null;
+        }
+
+        if (json.type === 'VariableDeclaration') {
+            return this.liftVariableDeclaration(json);
+        }
+
+        const expr = this.tryLiftExpression(json);
+        if (expr !== null) {
+            return expr;
+        }
+
+        throw new MatchError('ForStatementInit', json.type);
     }
     liftBreakStatement(json: any): S.BreakStatement {
         assertNodeType(json, 'BreakStatement');
@@ -738,12 +796,18 @@ class Importer {
         return new S.AssignmentExpression({binding, expression});
     }
     liftAssignmentTarget(json: any): S.AssignmentTarget {
+        const result = this.tryLiftAssignmentTarget(json);
+        if (result !== null) {
+            return result;
+        }
+        throw new MatchError('AssignmentTarget', json.type);
+    }
+    tryLiftAssignmentTarget(json: any): S.AssignmentTarget | null {
         const simple = this.tryLiftSimpleAssignmentTarget(json);
-        if (simple) {
+        if (simple !== null) {
             return simple;
         }
-
-        throw new MatchError('AssignmentTarget', json.type);
+        return null;
     }
     liftSimpleAssignmentTarget(json: any): S.SimpleAssignmentTarget {
         const target = this.tryLiftSimpleAssignmentTarget(json);
@@ -835,7 +899,24 @@ class Importer {
     }
     liftLiteralRegExpExpression(json: any): S.LiteralRegExpExpression {
         assertNodeType(json, 'LiteralRegExpExpression');
-        return summarizeNode(json);
+        assertType(json.pattern, 'string');
+        assertType(json.global, 'boolean');
+        assertType(json.ignoreCase, 'boolean');
+        assertType(json.multiLine, 'boolean');
+        assertType(json.unicode, 'boolean');
+        assertType(json.sticky, 'boolean');
+
+        const pattern = json.pattern as string;
+
+        const flagArray: Array<string> = [];
+        if (json.global) { flagArray.push('g'); }
+        if (json.ignoreCase) { flagArray.push('i'); }
+        if (json.multiLine) { flagArray.push('m'); }
+        if (json.unicode) { flagArray.push('u'); }
+        if (json.sticky) { flagArray.push('y'); }
+        const flags = flagArray.join();
+
+        return new S.LiteralRegExpExpression({pattern, flags});
     }
     liftCompoundAssignmentExpression(json: any)
       : S.CompoundAssignmentExpression
