@@ -718,6 +718,16 @@ export class CompoundAssignmentExpression extends BaseNode {
     readonly binding: SimpleAssignmentTarget;
     // The `AssignmentExpression`.
     readonly expression: Expression;
+
+    constructor(params: {operator: CompoundAssignmentOperator,
+                         binding: SimpleAssignmentTarget,
+                         expression: Expression})
+    {
+        super();
+        this.operator = params.operator;
+        this.binding = params.binding;
+        this.expression = params.expression;
+    }
 }
 
 export class ComputedMemberExpression extends BaseNode {
@@ -743,6 +753,16 @@ export class ConditionalExpression extends BaseNode {
     readonly consequent: Expression;
     // The second `AssignmentExpression`.
     readonly alternate: Expression;
+
+    constructor(params: {test: Expression,
+                         consequent: Expression,
+                         alternate: Expression})
+    {
+        super();
+        this.test = params.test;
+        this.consequent = params.consequent;
+        this.alternate = params.alternate;
+    }
 }
 
 // `FunctionExpression`,
@@ -907,6 +927,11 @@ export class BreakStatement extends BaseNode {
 
 export class ContinueStatement extends BaseNode {
     readonly label: Label | null;
+
+    constructor(params: {label: Label|null}) {
+        super();
+        this.label = params.label;
+    }
 }
 
 export class DebuggerStatement extends BaseNode { };
@@ -914,6 +939,12 @@ export class DebuggerStatement extends BaseNode { };
 export class DoWhileStatement extends BaseNode {
     readonly test: Expression;
     readonly body: Statement;
+
+    constructor(params: {test: Expression, body: Statement}) {
+        super();
+        this.test = params.test;
+        this.body = params.body;
+    }
 }
 
 export class EmptyStatement extends BaseNode { };
@@ -1075,6 +1106,12 @@ export class TryFinallyStatement extends BaseNode {
 export class WhileStatement extends BaseNode {
     readonly test: Expression;
     readonly body: Statement;
+
+    constructor(params: {test: Expression, body: Statement}) {
+        super();
+        this.test = params.test;
+        this.body = params.body;
+    }
 }
 
 export class WithStatement extends BaseNode {

@@ -251,6 +251,8 @@ class Importer {
             return this.liftForStatement(json);
           case 'BreakStatement':
             return this.liftBreakStatement(json);
+          case 'ContinueStatement':
+            return this.liftContinueStatement(json);
           case 'TryCatchStatement':
             return this.liftTryCatchStatement(json);
           case 'TryFinallyStatement':
@@ -401,11 +403,19 @@ class Importer {
     }
     liftWhileStatement(json: any): S.WhileStatement {
         assertNodeType(json, 'WhileStatement');
-        return summarizeNode(json);
+
+        const test = this.liftExpression(json.test);
+        const body = this.liftStatement(json.body);
+
+        return new S.WhileStatement({test, body});
     }
     liftDoWhileStatement(json: any): S.DoWhileStatement {
         assertNodeType(json, 'DoWhileStatement');
-        return summarizeNode(json);
+
+        const test = this.liftExpression(json.test);
+        const body = this.liftStatement(json.body);
+
+        return new S.DoWhileStatement({test, body});
     }
 
     liftBlockStatement(json: any): S.Block {
@@ -446,6 +456,13 @@ class Importer {
 
         const label = json.label as (S.Label|null);
         return new S.BreakStatement({label});
+    }
+    liftContinueStatement(json: any): S.ContinueStatement {
+        assertNodeType(json, 'ContinueStatement');
+        assertType(json.label, 'string', /* nullable = */ true);
+
+        const label = json.label as (S.Label|null);
+        return new S.ContinueStatement({label});
     }
     liftTryCatchStatement(json: any): S.TryCatchStatement {
         assertNodeType(json, 'TryCatchStatement');
@@ -824,7 +841,15 @@ class Importer {
       : S.CompoundAssignmentExpression
     {
         assertNodeType(json, 'CompoundAssignmentExpression');
-        return summarizeNode(json);
+        assertType(json.operator, 'string');
+
+        const operator = json.operator as S.CompoundAssignmentOperator;
+        const binding = this.liftSimpleAssignmentTarget(json.binding);
+        const expression = this.liftExpression(json.expression);
+
+        return new S.CompoundAssignmentExpression({
+            operator, binding, expression
+        });
     }
     liftUpdateExpression(json: any): S.UpdateExpression {
         assertNodeType(json, 'UpdateExpression');
@@ -851,7 +876,12 @@ class Importer {
     }
     liftConditionalExpression(json: any): S.ConditionalExpression {
         assertNodeType(json, 'ConditionalExpression');
-        return summarizeNode(json);
+
+        const test = this.liftExpression(json.test);
+        const consequent = this.liftExpression(json.consequent);
+        const alternate = this.liftExpression(json.alternate);
+
+        return new S.ConditionalExpression({test, consequent, alternate});
     }
 
     liftPropertyName(json: any): S.PropertyName {
