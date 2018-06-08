@@ -51,131 +51,246 @@ function nodeShortSummary(obj: any): string {
     return `${obj.type}(${propNames(obj)})`;
 }
 
-
-class Context {
-    curScope: Scope;
-
-    constructor() {
-        this.curScope = null;
-    }
-
-    atTopScope(): boolean {
-        return this.curScope === null;
-    }
-
-    pushScope(): Scope {
-        this.curScope = new Scope(this.curScope);
-        return this.curScope;
-    }
-
-    popScope(scope: Scope) {
-        assert(this.curScope !== null);
-        assert(this.curScope === scope);
-        this.curScope = this.curScope.parent;
-    }
-}
-
-type BareVarScopeObject = {
-    lexicallyDeclaredNames: Array<string>,
-    varDeclaredNames: Array<string>,
-    capturedNames: Array<string>,
-    hasDirectEval: boolean
-};
-
 type ScopeNameLocation = (S.VariableDeclarationKind | 'parameter');
 
-class Scope {
-    parent: Scope | null;
-    lexicallyDeclaredNames: Array<string>;
-    varDeclaredNames: Array<string>;
-    parameterNames: Array<string>;
+class BaseScope {
     capturedNames: Array<string>;
     hasDirectEval: boolean;
 
     nameMap: Map<string, ScopeNameLocation>;
     captureSet: Set<string>;
 
-    constructor(parent: Scope|null) {
-        this.parent = parent;
-        this.lexicallyDeclaredNames = new Array();
-        this.varDeclaredNames = new Array();
+    constructor() {
         this.capturedNames = new Array();
-        this.parameterNames = new Array();
         this.hasDirectEval = false;
 
         this.nameMap = new Map();
         this.captureSet = new Set();
     }
 
-    extractVarScope(): S.AssertedVarScope {
-        assert(this.parameterNames.length == 0);
+    protected addName(name: string, location: ScopeNameLocation) {
+        this.nameMap.set(name, location);
+    }
 
+    isBlockScope() { return this instanceof BlockScope; }
+}
+
+class BlockScope extends BaseScope {
+    lexicallyDeclaredNames: Array<string>;
+
+    constructor() {
+        super();
+        this.lexicallyDeclaredNames = new Array();
+    }
+
+    addLetName(name: string) {
+        super.addName(name, S.VariableDeclarationKind.Let);
+        this.lexicallyDeclaredNames.push(name);
+    }
+    addConstName(name: string) {
+        super.addName(name, S.VariableDeclarationKind.Const);
+        this.lexicallyDeclaredNames.push(name);
+    }
+
+    extractBlockScope(): S.AssertedBlockScope {
+        return new S.AssertedBlockScope({
+            lexicallyDeclaredNames: this.lexicallyDeclaredNames,
+            capturedNames: this.capturedNames,
+            hasDirectEval: this.hasDirectEval});
+    }
+
+}
+
+class VarScope extends BaseScope {
+    lexicallyDeclaredNames: Array<string>;
+    varDeclaredNames: Array<string>;
+
+    constructor() {
+        super();
+        this.lexicallyDeclaredNames = new Array();
+        this.varDeclaredNames = new Array();
+    }
+
+    addLetName(name: string) {
+        super.addName(name, S.VariableDeclarationKind.Let);
+        this.lexicallyDeclaredNames.push(name);
+    }
+    addConstName(name: string) {
+        super.addName(name, S.VariableDeclarationKind.Const);
+        this.lexicallyDeclaredNames.push(name);
+    }
+    addVarName(name: string) {
+        super.addName(name, S.VariableDeclarationKind.Var);
+        this.varDeclaredNames.push(name);
+    }
+
+    extractVarScope(): S.AssertedVarScope {
         return new S.AssertedVarScope({
             lexicallyDeclaredNames: this.lexicallyDeclaredNames,
             varDeclaredNames: this.varDeclaredNames,
             capturedNames: this.capturedNames,
             hasDirectEval: this.hasDirectEval});
     }
-    extractBlockScope(): S.AssertedBlockScope {
-        assert(this.parameterNames.length == 0);
-        assert(this.varDeclaredNames.length == 0);
+}
 
-        return new S.AssertedBlockScope({
-            lexicallyDeclaredNames: this.lexicallyDeclaredNames,
-            capturedNames: this.capturedNames,
-            hasDirectEval: this.hasDirectEval});
+class ParameterScope extends BaseScope {
+    parameterNames: Array<string>;
+
+    constructor() {
+        super();
+        this.parameterNames = new Array();
     }
-    extractParameterScope(): S.AssertedParameterScope {
-        assert(this.varDeclaredNames.length == 0);
-        assert(this.lexicallyDeclaredNames.length == 0);
 
+    addParameterName(name: string) {
+        super.addName(name, 'parameter');
+        this.parameterNames.push(name);
+    }
+
+    extractParameterScope(): S.AssertedParameterScope {
         return new S.AssertedParameterScope({
             parameterNames: this.parameterNames,
             capturedNames: this.capturedNames,
             hasDirectEval: this.hasDirectEval});
     }
+}
 
-    addName(name: string, location: ScopeNameLocation) {
-        assert(!this.nameMap.has(name));
-        assert(!this.captureSet.has(name));
-        this.nameMap.set(name, location);
-        switch (location) {
-          case 'parameter':
-            this.parameterNames.push(name);
-            break;
+enum ScopeBindMode {
+    None = "none",
+    Var = "var",
+    Let = "let",
+    Const = "const",
+    Parameter = "parameter"
+}
+
+class Context {
+    scopeStack: Array<BaseScope>;
+    bindStack: Array<ScopeBindMode>;
+
+    constructor() {
+        this.scopeStack = new Array();
+        this.bindStack = new Array();
+    }
+
+    atTopScope(): boolean {
+        return this.scopeStack.length === 0;
+    }
+
+    enterVarScope<T>(f: (VarScope) => T): T {
+        const varScope = new VarScope();
+        return this.enterScope<VarScope, T>(varScope, f);
+    }
+    enterBlockScope<T>(f: (BlockScope) => T): T {
+        const blockScope = new BlockScope();
+        return this.enterScope<BlockScope, T>(blockScope, f);
+    }
+    enterParameterScope<T>(f: (ParameterScope) => T): T {
+        const paramScope = new ParameterScope();
+        return this.enterScope<ParameterScope, T>(paramScope, f);
+    }
+    private enterScope<S extends BaseScope, T>(scope: S, f: (S) => T): T {
+        this.scopeStack.push(scope);
+        const result = f(scope);
+        this.scopeStack.pop();
+        return result;
+    }
+
+    bindDeclKind<T>(kind: S.VariableDeclarationKind, f: () => T): T {
+        switch (kind) {
           case S.VariableDeclarationKind.Var:
-            this.varDeclaredNames.push(name);
-            break;
+            return this.bindVars(f);
           case S.VariableDeclarationKind.Let:
+            return this.bindLets(f);
           case S.VariableDeclarationKind.Const:
-            this.lexicallyDeclaredNames.push(name);
-            break;
+            return this.bindConsts(f);
           default:
-            throw new MatchError('NameLocation', location);
+            throw new Error(`Invalid VariableDeclarationKind ${kind}`);
+        }
+    }
+    bindVars<T>(f: () => T): T {
+        return this.bind<T>(ScopeBindMode.Var, f);
+    }
+    bindLets<T>(f: () => T): T {
+        return this.bind<T>(ScopeBindMode.Let, f);
+    }
+    bindConsts<T>(f: () => T): T {
+        return this.bind<T>(ScopeBindMode.Const, f);
+    }
+    bindParameters<T>(f: () => T): T {
+        return this.bind<T>(ScopeBindMode.Parameter, f);
+    }
+    private bind<T>(mode: ScopeBindMode, f: () => T): T {
+        this.bindStack.push(mode);
+        const result = f();
+        this.bindStack.pop();
+        return result;
+    }
+
+    noteBoundName(name: S.Identifier) {
+        assert(this.bindStack.length > 0);
+        const bindMode = this.bindStack[this.bindStack.length - 1];
+        switch (bindMode) {
+          case ScopeBindMode.Var:       return this.noteBoundVar(name);
+          case ScopeBindMode.Let:       return this.noteBoundLet(name);
+          case ScopeBindMode.Const:     return this.noteBoundConst(name);
+          case ScopeBindMode.Parameter: return this.noteBoundParameter(name);
+          default: throw new Error(`Invalid scope bind mode: ${bindMode}`);
         }
     }
 
-    useName(name: string) {
-        if (this.nameMap.has(name)) {
-            return 0;
-        }
-        if (this.parent == null) {
-            return -1;
-        }
-        return this.parent.useNameInChildScope(name, 1);
-    }
-    private useNameInChildScope(name: string, depth: number) {
-        if (this.nameMap.has(name)) {
-            if (!this.captureSet.has(name)) {
-                this.captureSet.add(name);
-                this.capturedNames.push(name);
+    private noteBoundVar(name: S.Identifier) {
+        const found = this.eachScope(scope => {
+            if (scope instanceof VarScope) {
+                (scope as VarScope).addVarName(name as string);
+                return true;
             }
-            return depth;
+        });
+        assert(found === true);
+    }
+    private noteBoundLet(name: S.Identifier) {
+        const found = this.eachScope(scope => {
+            if (scope instanceof BlockScope) {
+                (scope as BlockScope).addLetName(name as string);
+                return true;
+            }
+            if (scope instanceof VarScope) {
+                (scope as VarScope).addLetName(name as string);
+                return true;
+            }
+        });
+        assert(found === true);
+    }
+    private noteBoundConst(name: S.Identifier) {
+        const found = this.eachScope(scope => {
+            if (scope instanceof BlockScope) {
+                (scope as BlockScope).addConstName(name as string);
+                return true;
+            }
+            if (scope instanceof VarScope) {
+                (scope as VarScope).addConstName(name as string);
+                return true;
+            }
+        });
+        assert(found === true);
+    }
+    private noteBoundParameter(name: S.Identifier) {
+        const found = this.eachScope(scope => {
+            if (scope instanceof ParameterScope) {
+                (scope as ParameterScope).addParameterName(name as string);
+                return true;
+            }
+        });
+        assert(found === true);
+    }
+    private eachScope<T>(f: (BaseScope) => T|undefined): T|undefined {
+        const len = this.scopeStack.length;
+        for (var i = 0; i < len; i++) {
+            const scope = this.scopeStack[len - (i+1)];
+            const r = f(scope);
+            if (r !== undefined) {
+                return r;
+            }
         }
-        if (this.parent == null) {
-            return -1;
-        }
-        return this.parent.useNameInChildScope(name, depth + 1);
+        return undefined;
     }
 }
 
@@ -203,17 +318,16 @@ class Importer {
         assertNodeType(json, 'Script');
         assert(this.cx.atTopScope());
 
-        const ss = this.cx.pushScope();
-
         const directives = (json.directives as Array<any>).map(
             d => this.liftDirective(d));
-        const statements = (json.statements as Array<any>).map(
-            s => this.liftStatement(s));
 
-        const scope = ss.extractVarScope();
-        this.cx.popScope(ss);
+        return this.cx.enterVarScope((ss: VarScope) => {
+            const statements = (json.statements as Array<any>).map(
+                s => this.liftStatement(s));
 
-        return new S.Script({scope, directives, statements});
+            const scope = ss.extractVarScope();
+            return new S.Script({scope, directives, statements});
+        });
     }
 
     liftDirective(json: any): S.Directive {
@@ -302,21 +416,15 @@ class Importer {
     liftVariableDeclarator(json: any): S.VariableDeclarator {
         assertNodeType(json, 'VariableDeclarator');
 
-        const binding = this.liftBinding(json.binding);
+        // Lift the expression before the binding because
+        // the expression does not capture the bound variable name.
         const init = (('init' in json) && (json.init !== null))
                             ? this.liftExpression(json.init)
                             : null;
+        const binding = this.cx.bindVars(() => {
+            return this.liftBinding(json.binding);
+        });
         return new S.VariableDeclarator({binding, init});
-    }
-    tryLiftBinding(json: any): S.Binding|null {
-        switch (json.type) {
-          case 'BindingIdentifier':
-            return this.liftBindingIdentifier(json);
-          case 'BindingPattern':
-            throw new MatchError('Binding', json.type);
-          default:
-            return null;
-        }
     }
     liftBinding(json: any): S.Binding {
         const binding = this.tryLiftBinding(json);
@@ -325,11 +433,22 @@ class Importer {
         }
         return binding;
     }
+    tryLiftBinding(json: any): S.Binding|null {
+        switch (json.type) {
+          case 'BindingIdentifier':
+            return this.liftBindingIdentifier(json);
+          case 'BindingPattern':
+            throw new Error('BindingPattern not handled yet.');
+          default:
+            return null;
+        }
+    }
     liftBindingIdentifier(json: any): S.BindingIdentifier {
         assertNodeType(json, 'BindingIdentifier');
         assertType(json.name, 'string');
 
         const name = json.name as S.Identifier;
+        this.cx.noteBoundName(name);
         return new S.BindingIdentifier({name});
     }
 
@@ -339,36 +458,37 @@ class Importer {
 
         const isAsync = false;
         const isGenerator = json.isGenerator as boolean;
-        const name = this.liftBindingIdentifier(json.name);
+        return this.cx.enterParameterScope(ps => {
+            const name = this.cx.bindParameters(() => {
+                return this.liftBindingIdentifier(json.name);
+            });
+            const params = this.liftFormalParameters(json.params);
+            const parameterScope = ps.extractParameterScope();
 
-        const ps = this.cx.pushScope();
-        const params = this.liftFormalParameters(json.params);
+            return this.cx.enterVarScope(bs => {
+                const body = this.liftFunctionBody(json.body);
+                const bodyScope = bs.extractVarScope();
 
-        const bs = this.cx.pushScope();
-        const body = this.liftFunctionBody(json.body);
-
-        this.cx.popScope(bs);
-        this.cx.popScope(ps);
-
-        const parameterScope = ps.extractParameterScope();
-        const bodyScope = bs.extractVarScope();
-
-        // TODO: Emit an SkippableFunctionDeclaration when appropriate.
-        return new S.EagerFunctionDeclaration({
-            isAsync, isGenerator, name,
-            parameterScope, params,
-            bodyScope, body
+                // TODO: Emit an SkippableFunctionDeclaration when appropriate.
+                return new S.EagerFunctionDeclaration({
+                    isAsync, isGenerator, name,
+                    parameterScope, params,
+                    bodyScope, body
+                });
+            });
         });
     }
 
     liftFormalParameters(json: any): S.FormalParameters {
         assertNodeType(json, 'FormalParameters');
-        const items = json.items.map(i => this.liftParameter(i))
-        const rest: (S.Binding | null) =
-            json.rest !== null ?
-                this.liftBinding(json.rest)
-              : null;
-        return new S.FormalParameters({items, rest});
+        return this.cx.bindParameters(() => {
+            const items = json.items.map(i => this.liftParameter(i))
+            const rest: (S.Binding | null) =
+                json.rest !== null ?
+                    this.liftBinding(json.rest)
+                  : null;
+            return new S.FormalParameters({items, rest});
+        });
     }
     liftParameter(json: any): S.Parameter {
         // Try to lift a binding
@@ -425,12 +545,11 @@ class Importer {
     liftBlock(json: any): S.Block {
         assertNodeType(json, 'Block');
 
-        const s = this.cx.pushScope();
-        const statements = json.statements.map(s => this.liftStatement(s));
-        this.cx.popScope(s);
-        const scope = s.extractBlockScope();
-
-        return new S.Block({scope, statements});
+        return this.cx.enterBlockScope(s => {
+            const statements = json.statements.map(s => this.liftStatement(s));
+            const scope = s.extractBlockScope();
+            return new S.Block({scope, statements});
+        });
     }
     liftReturnStatement(json: any): S.ReturnStatement {
         assertNodeType(json, 'ReturnStatement');
@@ -445,11 +564,16 @@ class Importer {
     liftForInStatement(json: any): S.ForInStatement {
         assertNodeType(json, 'ForInStatement');
 
-        const left = this.liftForInStatementLeft(json.left);
-        const right = this.liftExpression(json.right);
-        const body = this.liftStatement(json.body);
+        return this.cx.enterBlockScope((vs: VarScope) => {
+            // Lift the expression before the binding so
+            // the expression gets scoped before the variable
+            // gets bound.
+            const right = this.liftExpression(json.right);
+            const left = this.liftForInStatementLeft(json.left);
+            const body = this.liftStatement(json.body);
 
-        return new S.ForInStatement({left, right, body});
+            return new S.ForInStatement({left, right, body});
+        });
     }
     liftForInStatementLeft(json: any)
       : (S.ForInOfBinding | S.AssignmentTarget)
@@ -460,7 +584,7 @@ class Importer {
         }
 
         if (json.type == 'VariableDeclaration') {
-            const kind = json.kind as S.VariableDeclarationKind;
+            const kind = this.liftVariableDeclarationKind(json.kind as string);
             if (json.declarators.length != 1) {
                 throw new Error('Invalid ForIn with multiple declarations:' +
                                 ` ${json.declarators.length}.`);
@@ -470,8 +594,10 @@ class Importer {
                 throw new Error('Expected VariableDeclarator in ForIn,' +
                                 ` but got: ${decl.type}.`);
             }
-            const binding = this.liftBinding(decl.binding);
 
+            const binding = this.cx.bindDeclKind(kind, () => {
+                return this.liftBinding(decl.binding);
+            });
             return new S.ForInOfBinding({kind, binding});
         }
 
@@ -481,14 +607,16 @@ class Importer {
     liftForStatement(json: any): S.ForStatement {
         assertNodeType(json, 'ForStatement');
 
-        const init = this.liftForStatementInit(json.init);
-        const test = json.test !== null ? this.liftExpression(json.test)
-                                        : null;
-        const update = json.update !== null ? this.liftExpression(json.update)
-                                        : null;
-        const body = this.liftStatement(json.body);
+        return this.cx.enterBlockScope(bs => {
+            const init = this.liftForStatementInit(json.init);
+            const test = json.test !== null ? this.liftExpression(json.test)
+                                            : null;
+            const update = json.update !== null ? this.liftExpression(json.update)
+                                            : null;
+            const body = this.liftStatement(json.body);
 
-        return new S.ForStatement({init, test, update, body});
+            return new S.ForStatement({init, test, update, body});
+        });
     }
     liftForStatementInit(json: any)
       : (S.VariableDeclaration | S.Expression | null)
@@ -533,13 +661,14 @@ class Importer {
     liftCatchClause(json: any): S.CatchClause {
         assertNodeType(json, 'CatchClause');
 
-        const bs = this.cx.pushScope();
-        const binding = this.liftBindingIdentifier(json.binding);
-        const body = this.liftBlock(json.body);
-        this.cx.popScope(bs);
-        const bindingScope = bs.extractParameterScope();
-
-        return new S.CatchClause({bindingScope, binding, body});
+        return this.cx.enterParameterScope(bs => {
+            const binding = this.cx.bindParameters(() => {
+                return this.liftBindingIdentifier(json.binding);
+            });
+            const body = this.liftBlock(json.body);
+            const bindingScope = bs.extractParameterScope();
+            return new S.CatchClause({bindingScope, binding, body});
+        });
     }
 
     liftTryFinallyStatement(json: any): S.TryFinallyStatement {
@@ -763,28 +892,26 @@ class Importer {
 
         const isAsync = false;
         const isGenerator = json.isGenerator as boolean;
-        const name =
-            json.name !== null ?
-                this.liftBindingIdentifier(json.name)
-              : null;
 
-        const ps = this.cx.pushScope();
-        const params = this.liftFormalParameters(json.params);
+        return this.cx.enterParameterScope(ps => {
+            const name = this.cx.bindParameters(() => {
+                return json.name !== null ?
+                    this.liftBindingIdentifier(json.name)
+                  : null;
+            });
+            const params = this.liftFormalParameters(json.params);
+            return this.cx.enterVarScope(bs => {
+                const body = this.liftFunctionBody(json.body);
+                const parameterScope = ps.extractParameterScope();
+                const bodyScope = bs.extractVarScope();
 
-        const bs = this.cx.pushScope();
-        const body = this.liftFunctionBody(json.body);
-
-        this.cx.popScope(bs);
-        this.cx.popScope(ps);
-
-        const parameterScope = ps.extractParameterScope();
-        const bodyScope = bs.extractVarScope();
-
-        // TODO: Emit an SkippableFunctionExpression when appropriate.
-        return new S.EagerFunctionExpression({
-            isAsync, isGenerator, name,
-            parameterScope, params,
-            bodyScope, body
+                // TODO: Emit a SkippableFunctionExpression when appropriate.
+                return new S.EagerFunctionExpression({
+                    isAsync, isGenerator, name,
+                    parameterScope, params,
+                    bodyScope, body
+                });
+            });
         });
     }
     liftAssignmentExpression(json: any): S.AssignmentExpression {
