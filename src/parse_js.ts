@@ -1,6 +1,5 @@
 
 import * as assert from 'assert';
-import * as shift from 'shift-parser';
 
 import * as S from './schema';
 
@@ -331,27 +330,7 @@ class Context {
     }
 }
 
-export function importScript(data: string): any {
-    const json: any = shift.parseScript(data);
-    if (json.type !== 'Script') {
-        throw new Error('Not a script');
-    }
-    const importer: Importer = new Importer();
-    const script: S.Script = importer.liftScript(json);
-
-    const sr: StringRegistry = importer.strings;
-    const strings = sr.stringsInFrequencyOrder();
-    let stLength = 0;
-    strings.forEach((s, i) => {
-        const f = sr.frequencyOf(s);
-        console.log(`String [${i}] \`${s}\` - ${f}`);
-        stLength += (s.length + 1);
-    });
-    console.log(`String table length: ${stLength}`);
-    return {};
-}
-
-class StringRegistry {
+export class StringRegistry {
     // Table mapping all strings that are used to
     // number of uses.
     stringTable: Map<string, number>;
@@ -386,7 +365,7 @@ class StringRegistry {
     }
 }
 
-class Importer {
+export class Importer {
     readonly cx: Context;
     readonly strings: StringRegistry;
 
