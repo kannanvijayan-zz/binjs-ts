@@ -53,7 +53,7 @@ function nodeShortSummary(obj: any): string {
 
 type ScopeNameLocation = (S.VariableDeclarationKind | 'parameter');
 
-class BaseScope {
+abstract class BaseScope {
     capturedNames: Array<string>;
     hasDirectEval: boolean;
 
@@ -72,7 +72,22 @@ class BaseScope {
         this.nameMap.set(name, location);
     }
 
-    isBlockScope() { return this instanceof BlockScope; }
+    doesBindName(name: string): boolean {
+        return this.nameMap.get(name) !== undefined;
+    }
+
+    /** Try to capture the use of the given name with this scope.
+     * Return whether successful. */
+    findOrCaptureUse(name: string, capture: boolean): boolean {
+        if (this.doesBindName(name)) {
+            if (capture && !this.captureSet.has(name)) {
+                this.captureSet.add(name);
+                this.capturedNames.push(name);
+            }
+            return true;
+        }
+        return false;
+    }
 }
 
 class BlockScope extends BaseScope {
@@ -98,7 +113,6 @@ class BlockScope extends BaseScope {
             capturedNames: this.capturedNames,
             hasDirectEval: this.hasDirectEval});
     }
-
 }
 
 class VarScope extends BaseScope {
@@ -291,6 +305,29 @@ class Context {
             }
         }
         return undefined;
+    }
+
+    /* Note the use of a name in the current scope context.
+     * Return the scope that binds the name (after marking it
+     * at used if necessary), or return null if the reference
+     * is free.
+     */
+    noteUseName(name: string): BaseScope|null {
+        let capture: boolean = false;
+
+        const foundScope = this.eachScope((scope: BaseScope) => {
+            if (scope.findOrCaptureUse(name, capture)) {
+                return scope;
+            }
+
+            // If we're crossing a VarScope boundary, which corresponds
+            // to function scope, set flag to capture names as we're
+            // entering a caller function's scope.
+            if (!capture && (scope instanceof VarScope)) {
+                capture = true;
+            }
+        });
+        return foundScope || null;
     }
 }
 
@@ -814,6 +851,9 @@ class Importer {
         assertType(json.name, 'string');
 
         const name = json.name as S.Identifier;
+
+        // Note the use of the identifier.
+        this.cx.noteUseName(name);
 
         return new S.IdentifierExpression({name});
     }
