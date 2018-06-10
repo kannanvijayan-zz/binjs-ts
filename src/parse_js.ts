@@ -336,15 +336,63 @@ export function importScript(data: string): any {
     if (json.type !== 'Script') {
         throw new Error('Not a script');
     }
-    const importer = new Importer();
-    return importer.liftScript(json);
+    const importer: Importer = new Importer();
+    const script: S.Script = importer.liftScript(json);
+
+    const sr: StringRegistry = importer.strings;
+    const strings = sr.stringsInFrequencyOrder();
+    let stLength = 0;
+    strings.forEach((s, i) => {
+        const f = sr.frequencyOf(s);
+        console.log(`String [${i}] \`${s}\` - ${f}`);
+        stLength += (s.length + 1);
+    });
+    console.log(`String table length: ${stLength}`);
+    return {};
+}
+
+class StringRegistry {
+    // Table mapping all strings that are used to
+    // number of uses.
+    stringTable: Map<string, number>;
+
+    constructor() {
+        this.stringTable = new Map();
+    }
+
+    noteString(s: string) {
+        const count = this.stringTable.get(s);
+        const next = (count !== undefined) ? (count as number) + 1
+                                           : 1;
+        this.stringTable.set(s, next);
+    }
+
+    // Return an array of all the strings ordered by use.
+    stringsInFrequencyOrder(): Array<string> {
+        const st = this.stringTable;
+        const array: Array<string> = new Array();
+        for (let s of st.keys()) {
+            array.push(s);
+        }
+        // Sort, with highest frequencies showing up first.
+        array.sort((a: string, b: string) => (st.get(b) - st.get(a)));
+
+        return array;
+    }
+
+    frequencyOf(s: string) {
+        assert(this.stringTable.has(s));
+        return this.stringTable.get(s);
+    }
 }
 
 class Importer {
     readonly cx: Context;
+    readonly strings: StringRegistry;
 
     constructor() {
         this.cx = new Context();
+        this.strings = new StringRegistry();
     }
 
     //
@@ -486,6 +534,7 @@ class Importer {
 
         const name = json.name as S.Identifier;
         this.cx.noteBoundName(name);
+        this.strings.noteString(name);
         return new S.BindingIdentifier({name});
     }
 
@@ -678,6 +727,11 @@ class Importer {
         assertType(json.label, 'string', /* nullable = */ true);
 
         const label = json.label as (S.Label|null);
+        if (label !== null) {
+            // Note the label string.
+            this.strings.noteString(label);
+        }
+
         return new S.BreakStatement({label});
     }
     liftContinueStatement(json: any): S.ContinueStatement {
@@ -685,6 +739,10 @@ class Importer {
         assertType(json.label, 'string', /* nullable = */ true);
 
         const label = json.label as (S.Label|null);
+        if (label !== null) {
+            // Note the label string.
+            this.strings.noteString(label);
+        }
         return new S.ContinueStatement({label});
     }
     liftTryCatchStatement(json: any): S.TryCatchStatement {
@@ -854,6 +912,7 @@ class Importer {
 
         // Note the use of the identifier.
         this.cx.noteUseName(name);
+        this.strings.noteString(name);
 
         return new S.IdentifierExpression({name});
     }
@@ -1001,6 +1060,10 @@ class Importer {
 
         const name = json.name as S.Identifier;
 
+        // Note the use of the identifier.
+        this.cx.noteUseName(name);
+        this.strings.noteString(name);
+
         return new S.AssignmentTargetIdentifier({name});
     }
     liftStaticMemberAssignmentTarget(json: any)
@@ -1011,6 +1074,9 @@ class Importer {
 
         const object_ = this.liftExpressionOrSuper(json.object);
         const property = json.property as S.IdentifierName;
+
+        // Note the string.
+        this.strings.noteString(property);
 
         return new S.StaticMemberAssignmentTarget({object_, property});
     }
