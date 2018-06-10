@@ -1,6 +1,7 @@
 
-import * as assert from 'assert';
+"use strict";
 
+import * as assert from 'assert';
 import * as S from './schema';
 
 class MatchError extends Error {
@@ -511,10 +512,14 @@ export class Importer {
         assertNodeType(json, 'BindingIdentifier');
         assertType(json.name, 'string');
 
-        const name = json.name as S.Identifier;
+        const name = this.liftIdentifier(json.name);
         this.cx.noteBoundName(name);
-        this.strings.noteString(name);
         return new S.BindingIdentifier({name});
+    }
+
+    liftIdentifier(name: string): S.Identifier {
+        this.strings.noteString(name);
+        return name as S.Identifier;
     }
 
     liftFunctionDeclaration(json: any): S.FunctionDeclaration {
@@ -705,23 +710,22 @@ export class Importer {
         assertNodeType(json, 'BreakStatement');
         assertType(json.label, 'string', /* nullable = */ true);
 
-        const label = json.label as (S.Label|null);
-        if (label !== null) {
-            // Note the label string.
-            this.strings.noteString(label);
-        }
+        const label = this.liftLabel(json.label);
 
         return new S.BreakStatement({label});
+    }
+    liftLabel(label: string|null): S.Label|null {
+        if (label !== null) {
+            this.strings.noteString(label as string);
+        }
+        return label as (S.Label|null);
     }
     liftContinueStatement(json: any): S.ContinueStatement {
         assertNodeType(json, 'ContinueStatement');
         assertType(json.label, 'string', /* nullable = */ true);
 
-        const label = json.label as (S.Label|null);
-        if (label !== null) {
-            // Note the label string.
-            this.strings.noteString(label);
-        }
+        const label = this.liftLabel(json.label);
+
         return new S.ContinueStatement({label});
     }
     liftTryCatchStatement(json: any): S.TryCatchStatement {
@@ -887,11 +891,10 @@ export class Importer {
         assertNodeType(json, 'IdentifierExpression');
         assertType(json.name, 'string');
 
-        const name = json.name as S.Identifier;
+        const name = this.liftIdentifier(json.name);
 
         // Note the use of the identifier.
         this.cx.noteUseName(name);
-        this.strings.noteString(name);
 
         return new S.IdentifierExpression({name});
     }
@@ -900,6 +903,7 @@ export class Importer {
         assertType(json.value, 'string');
 
         const value = json.value as string;
+        this.strings.noteString(value);
 
         return new S.LiteralStringExpression({value});
     }
@@ -1037,11 +1041,10 @@ export class Importer {
         assertNodeType(json, 'AssignmentTargetIdentifier');
         assertType(json.name, 'string');
 
-        const name = json.name as S.Identifier;
+        const name = this.liftIdentifier(json.name);
 
         // Note the use of the identifier.
         this.cx.noteUseName(name);
-        this.strings.noteString(name);
 
         return new S.AssignmentTargetIdentifier({name});
     }
@@ -1052,10 +1055,7 @@ export class Importer {
         assertType(json.property, 'string');
 
         const object_ = this.liftExpressionOrSuper(json.object);
-        const property = json.property as S.IdentifierName;
-
-        // Note the string.
-        this.strings.noteString(property);
+        const property = this.liftIdentifier(json.property);
 
         return new S.StaticMemberAssignmentTarget({object_, property});
     }
