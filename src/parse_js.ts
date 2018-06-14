@@ -334,22 +334,22 @@ class Context {
 export class StringRegistry {
     // Table mapping all strings that are used to
     // number of uses.
-    stringTable: Map<string, number>;
+    freqMap: Map<string, number>;
 
     constructor() {
-        this.stringTable = new Map();
+        this.freqMap = new Map();
     }
 
     noteString(s: string) {
-        const count = this.stringTable.get(s);
+        const count = this.freqMap.get(s);
         const next = (count !== undefined) ? (count as number) + 1
                                            : 1;
-        this.stringTable.set(s, next);
+        this.freqMap.set(s, next);
     }
 
     // Return an array of all the strings ordered by use.
     stringsInFrequencyOrder(): Array<string> {
-        const st = this.stringTable;
+        const st = this.freqMap;
         const array: Array<string> = new Array();
         for (let s of st.keys()) {
             array.push(s);
@@ -361,8 +361,8 @@ export class StringRegistry {
     }
 
     frequencyOf(s: string) {
-        assert(this.stringTable.has(s));
-        return this.stringTable.get(s);
+        assert(this.freqMap.has(s));
+        return this.freqMap.get(s);
     }
 }
 

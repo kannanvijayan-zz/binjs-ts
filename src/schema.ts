@@ -136,10 +136,7 @@ export class AssertedParameterScope {
 //
 
 export abstract class BaseNode {
-    readonly type_: string;
-
     constructor() {
-        this.type_ = this.constructor.name as string;
     }
 }
 

@@ -3,8 +3,9 @@ import * as process from 'process';
 import * as fs from 'fs';
 
 import {parseScript} from 'shift-parser';
-import {Importer, StringRegistry} from './parse_js';
 import * as S from './schema';
+import {Importer, StringRegistry} from './parse_js';
+import {FixedSizeBufStream, StringTable, Encoder} from './encode_binast';
 
 function encode(filename: string) {
     const data: string = fs.readFileSync(filename, "utf8");
@@ -17,6 +18,14 @@ function encode(filename: string) {
 
     const sr: StringRegistry = importer.strings;
     const strings = sr.stringsInFrequencyOrder();
+    console.debug("DONE LIFTING");
+
+    const stringTable = new StringTable(strings);
+    const writeStream = new FixedSizeBufStream();
+    const encoder = new Encoder({script, stringTable, writeStream});
+
+    const stSize = encoder.encodeStringTable();
+    console.log(`Encoded string table size=${stSize}`);
     let stLength = 0;
     strings.forEach((s, i) => {
         const f = sr.frequencyOf(s);
@@ -24,7 +33,9 @@ function encode(filename: string) {
         stLength += (s.length + 1);
     });
     console.log(`String table length: ${stLength}`);
-    console.log(JSON.stringify(script, null, 2));
+    /*
+    // console.log(JSON.stringify(script, null, 2));
+    */
 }
 
 function main() {
