@@ -27,4 +27,5 @@ Then, `npm run build` will compile the TypeScript to JS and
 place the results in the `dist` subdirectory.
 
 Then, `npm run encode <FILE>` will "encode" a file (i.e.
-run the generated `dist/index.js` script on the given `<FILE>`.
+run the generated `dist/index.js` script on the given `<FILE>`).
+However, the actual encoder has yet to be written.
